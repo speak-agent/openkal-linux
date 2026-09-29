@@ -82,7 +82,7 @@ jobs:
 
       - name: The specification
         run: |
-          git clone --quiet https://github.com/mcpplibs/openkal.git .spec
+          git clone --quiet https://github.com/${{ github.repository_owner }}/openkal.git .spec
           branch='${{ github.head_ref || github.ref_name }}'
           if git -C .spec rev-parse --verify --quiet "origin/$branch" > /dev/null; then
             git -C .spec checkout --quiet "origin/$branch"

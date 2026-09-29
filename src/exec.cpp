@@ -16,9 +16,18 @@
 // program would discover that only on the other system. The interface states
 // the narrower contract and this implementation keeps to it.
 
+namespace okl { okl_ulong auxval(okl_ulong key); }
+
 namespace {
 
 constexpr okl_uptr kPage = 4096;
+
+// The page size the kernel protects in: the auxiliary vector's, which on some
+// aarch64 kernels is 16 or 64 KiB, and 4 KiB when the vector does not say.
+okl_uptr protection_page() {
+    const okl_ulong page = okl::auxval(6 /* AT_PAGESZ */);
+    return page != 0 ? static_cast<okl_uptr>(page) : kPage;
+}
 
 okl_uptr round_up(okl_uptr n, okl_uptr to) { return (n + to - 1) & ~(to - 1); }
 
@@ -90,6 +99,23 @@ void kal_exec_free(void* p, kal_uintptr size) {
     const okl_uptr bytes = round_up(static_cast<okl_uptr>(size), kPage);
     okl::sys(okl::nr_munmap, reinterpret_cast<okl_long>(p),
              static_cast<okl_long>(bytes));
+}
+
+// The partial form (openkal 0.15): the same protection call on part of the
+// mapping. The kernel protects in pages, so a part is whole pages.
+kal_uintptr kal_exec_granularity(void) {
+    return static_cast<kal_uintptr>(protection_page());
+}
+
+int kal_exec_publish_part(void* p, kal_uintptr offset, kal_uintptr size) {
+    const okl_uptr page = protection_page();
+    if (p == nullptr || size == 0 || offset % page != 0 || size % page != 0)
+        return kal_err_invalid;
+    const okl_long r = okl::sys(okl::nr_mprotect,
+                                reinterpret_cast<okl_long>(static_cast<unsigned char*>(p) + offset),
+                                static_cast<okl_long>(size),
+                                okl::prot_read | okl::prot_exec);
+    return okl::failed(r) ? okl::translate(r) : kal_ok;
 }
 
 // A published region may be reserved for writing again: this kernel's
