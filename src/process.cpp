@@ -6,7 +6,11 @@
 namespace {
 
 
-constexpr okl_uptr kMaxEntries = 512;
+// A bound against a vector no program could mean, not a limit of the kernel's: what it limits is the
+// bytes (a quarter of the stack's limit in all, 128 KiB for one string), and a linker is started with
+// one argument per object. 512 refused a link of seven hundred objects (mcxx linking xlings) with
+// kal_err_no_memory, far below any length the kernel would refuse.
+constexpr okl_uptr kMaxEntries = okl_uptr { 1 } << 20;
 
 // The counted arrays the interface takes become the terminated arrays the
 // kernel takes. Every allocation happens before the program is duplicated, so
