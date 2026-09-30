@@ -105,6 +105,13 @@ constexpr okl_uptr kRelative = 3;      // R_RISCV_RELATIVE
 // less the address its first segment states. Zero for a fixed address.
 [[gnu::always_inline]] inline okl_uptr image_bias() {
     const elf_ehdr* eh = &__ehdr_start;
+    // The address as the instruction computes it, not the word the GOT holds for a
+    // weak name: before relocation that word is the link address, which for a
+    // position-independent program's header is 0. Optimised, `eh == nullptr' was
+    // compiled to comparing that word with 0 (`cmpq $0, __ehdr_start@GOTPCREL'),
+    // which the linker cannot turn into the address, so every static-pie program
+    // took itself for one at a fixed address and relocated nothing.
+    __asm__("" : "+r"(eh));
     if (eh == nullptr) return 0;
     const auto* ph = reinterpret_cast<const elf_phdr*>(reinterpret_cast<const unsigned char*>(eh) + eh->phoff);
     for (unsigned i = 0; i < eh->phnum; ++i)
@@ -114,6 +121,7 @@ constexpr okl_uptr kRelative = 3;      // R_RISCV_RELATIVE
 
 [[gnu::always_inline]] inline void relocate_self(okl_uptr bias) {
     const elf_dyn* d = _DYNAMIC;
+    __asm__("" : "+r"(d));   // the computed address, not the GOT's word (image_bias says why)
     if (d == nullptr) return;
     okl_uptr rela = 0, relasz = 0, relr = 0, relrsz = 0;
     for (; d->tag != 0; ++d) {
