@@ -89,7 +89,17 @@ extern "C" okl_long __okl_clone(int (*fn)(void*), void* stack, int flags, void* 
 namespace {
 
 
-constexpr okl_uptr kStack = 256u * 1024u;
+// EIGHT MEBIBYTES, AS A PROCESS'S FIRST CONTEXT HAS, AND THE LOWEST PAGE A GUARD.
+//
+// It was 256 KiB. A program above may recurse as deeply on any context as on
+// the first, and one that sizes its own threads cannot say so here (the size is
+// a property, not a parameter): Clang asks the thread library for 8 MiB and
+// recurses accordingly in template instantiation, and on a smaller stack it ran
+// off the end. The stack is mapped, so what a context never reaches costs
+// address space and no memory. The guard turns running off the end into a
+// fault at the place it happens, where without it the context wrote silently
+// into whatever was mapped below.
+constexpr okl_uptr kStack = 8u * 1024u * 1024u;
 
 struct context {
     void (*entry)(void*);
@@ -154,6 +164,11 @@ int kal_task_start(void (*entry)(void*), void* arg, kal_task* out) {
         kal_free(c, sizeof(context), alignof(context));
         return kal_err_no_memory;
     }
+    // A mapping of this size is a whole one of its own, so its first page is
+    // the stack's lowest. A refusal leaves the stack without its guard, not
+    // without its context.
+    okl::sys(okl::nr_mprotect, reinterpret_cast<okl_long>(c->stack),
+             static_cast<okl_long>(kal_memory_granularity()), okl::prot_none);
     // The context is a thread of this process: it shares the address space,
     // the descriptors and the file system view, it is reaped without a wait,
     // and the kernel clears `tid' and wakes anything suspended upon it when
