@@ -30,9 +30,10 @@ inline tls_image& image() { static tls_image i{}; return i; }
 inline okl_uptr round_up(okl_uptr n, okl_uptr to) { return (n + to - 1) & ~(to - 1); }
 
 // Reads the program's own headers, which the kernel reports at inception. The
-// loader has already applied any bias, so the addresses are the ones the
-// program will use.
-inline void describe_tls(okl_ulong phdr, okl_ulong phent, okl_ulong phnum) {
+// headers state addresses the program was linked at; `bias' is how far from
+// them it was placed --- zero for a program linked at a fixed address, the
+// load address for one linked position-independent (start.cpp).
+inline void describe_tls(okl_ulong phdr, okl_ulong phent, okl_ulong phnum, okl_uptr bias) {
     struct elf_phdr {
         okl_u32 type, flags;
         okl_u64 offset, vaddr, paddr, filesz, memsz, align;
@@ -44,7 +45,7 @@ inline void describe_tls(okl_ulong phdr, okl_ulong phent, okl_ulong phnum) {
     for (okl_ulong i = 0; i < phnum; ++i) {
         const auto* p = reinterpret_cast<const elf_phdr*>(phdr + i * phent);
         if (p->type != pt_tls) continue;
-        im.data   = reinterpret_cast<const unsigned char*>(p->vaddr);
+        im.data   = reinterpret_cast<const unsigned char*>(p->vaddr + bias);
         im.filesz = static_cast<okl_uptr>(p->filesz);
         im.memsz  = static_cast<okl_uptr>(p->memsz);
         im.align  = p->align < 16 ? 16 : static_cast<okl_uptr>(p->align);

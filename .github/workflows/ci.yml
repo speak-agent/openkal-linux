@@ -82,7 +82,7 @@ jobs:
 
       - name: The specification
         run: |
-          git clone --quiet https://github.com/mcpplibs/openkal.git .spec
+          git clone --quiet https://github.com/${{ github.repository_owner }}/openkal.git .spec
           branch='${{ github.head_ref || github.ref_name }}'
           if git -C .spec rev-parse --verify --quiet "origin/$branch" > /dev/null; then
             git -C .spec checkout --quiet "origin/$branch"
@@ -311,7 +311,13 @@ jobs:
           # make one required --- which a strong reference to the same name
           # would, silently, and is why the type letter is checked and not just
           # the name.
-          weak_permitted='^environ$'
+          #
+          # `_DYNAMIC' and `__ehdr_start' (src/start.cpp: a static
+          # position-independent program relocating itself, 0.16.2) are the same
+          # kind and need the same weakness: the linker defines them, no C
+          # library does, they are data, and a program linked at a fixed address
+          # has neither, which the weak reference reads as null.
+          weak_permitted='^(environ|_DYNAMIC|__ehdr_start)$'
           bad=0
           nm --undefined-only $objs | awk '{ print $1, $2 }' | sort -u |
           while read -r kind name; do
@@ -364,7 +370,7 @@ jobs:
         if: matrix.toolchain == 'llvm@22.1.8'
         run: |
           permitted='^(memcpy|memmove|memset|memcmp|__libc_start_main|main|_GLOBAL_OFFSET_TABLE_|kal_[a-z_]+|__init_array_start|__init_array_end|__preinit_array_start|__preinit_array_end|_ZN3okl.*)$'
-          weak_permitted='^environ$'
+          weak_permitted='^(environ|_DYNAMIC|__ehdr_start)$'   # as above
 
           # TWO NAMES THE NATIVE SET DOES NOT HAVE, AND THEY ARE NOT A C
           # LIBRARY'S.

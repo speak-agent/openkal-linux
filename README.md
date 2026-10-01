@@ -84,6 +84,22 @@ this implementation, and the consumer that knows which arrangement holds is the
 one that declares it. `openkal-musl` declares it, because a program above a C
 library carries no other runtime by construction.
 
+**A program linked position-independent and static relocates itself (0.16.0).**
+`-static-pie` is how a program with no interpreter states the names it offers
+--- its dynamic symbol table, which is what a loader above openkal binds a
+loaded object's references to (openkal 0.15, SPEC clause 11 entry 21;
+openkal-musl's `dlopen`). The kernel places such a program where it chooses,
+and `_start` adds the difference to every word that holds one of its own
+addresses --- relative relocations, in a table or packed (`DT_RELR`) --- before
+anything reads one, and builds the thread-local block from where the segment
+actually is. A program linked at a fixed address has no dynamic section and is
+unchanged.
+
+**Part of a region published (0.16.0).** `kal_exec_publish_part` is the same
+protection call on part of the mapping, and `kal_exec_granularity` is the page
+size the kernel reports at start (`AT_PAGESZ`: 4 KiB, or 16 or 64 KiB on some
+aarch64 kernels).
+
 ## Points of interest for other implementations
 
 **Allocation is not built upon a C library's allocator.** Clause 7.3 requires
